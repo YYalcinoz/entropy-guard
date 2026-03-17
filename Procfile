@@ -1,1 +1,1 @@
-web: gunicorn password_audit_lib.web:app
+web: gunicorn --workers 4 --worker-class sync --timeout 120 password_audit_lib.web:app
