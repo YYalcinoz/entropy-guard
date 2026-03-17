@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+password_audit_lib/requirements-web.txt
+.cursor/
+docs/
+password_audit.py
+password_audit_backup.py
+password_audit_web.py

@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EntropyGuard</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #18181c;
+      --surface-hover: #1f1f24;
+      --border: #2a2a30;
+      --text: #e4e4e7;
+      --text-muted: #a1a1aa;
+      --accent: #7c3aed;
+      --accent-hover: #6d28d9;
+      --red: #ef4444;
+      --yellow: #eab308;
+      --green: #22c55e;
+      --radius: 10px;
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 1.5rem;
+    }
+
+    .container {
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .input-wrap {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .input-wrap input {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 1rem;
+    }
+
+    .input-wrap input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .input-wrap input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+    }
+
+    .btn {
+      padding: 0.75rem 1.25rem;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-icon {
+      background: var(--surface-hover);
+      color: var(--text-muted);
+      padding: 0.75rem;
+      min-width: 48px;
+    }
+
+    .btn-icon:hover {
+      color: var(--text);
+      background: var(--border);
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    .toggle-label input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+
+    #results {
+      display: none;
+    }
+
+    #results.visible {
+      display: block;
+    }
+
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+    }
+
+    .score-value {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+
+    .score-value.red { color: var(--red); }
+    .score-value.yellow { color: var(--yellow); }
+    .score-value.green { color: var(--green); }
+
+    .rating-badge {
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .rating-badge.red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .rating-badge.yellow { background: rgba(234, 179, 8, 0.15); color: var(--yellow); }
+    .rating-badge.green { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+
+    .meta {
+      display: grid;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .meta span {
+      color: var(--text);
+    }
+
+    .section-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin: 1rem 0 0.5rem;
+    }
+
+    .section-title:first-of-type {
+      margin-top: 0;
+    }
+
+    ul.plain {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    ul.plain li {
+      padding: 0.35rem 0;
+      padding-left: 1.25rem;
+      position: relative;
+    }
+
+    ul.plain li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: var(--text-muted);
+    }
+
+    .ai-suggestions {
+      margin-top: 1rem;
+    }
+
+    .ai-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      font-family: ui-monospace, monospace;
+      font-size: 0.9rem;
+      word-break: break-all;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .ai-item .pwd {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .ai-item .score {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .ai-item .score.red { color: var(--red); }
+    .ai-item .score.yellow { color: var(--yellow); }
+    .ai-item .score.green { color: var(--green); }
+
+    .error-msg {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--red);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .loading {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    @media (max-width: 480px) {
+      body { padding: 1rem; }
+      .input-wrap { flex-direction: column; }
+      .btn-icon { min-width: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Entropy Guard</h1>
+    <p class="subtitle">Check strength and get suggestions. Nothing is stored or sent elsewhere.</p>
+
+    <div class="card">
+      <form id="form" novalidate>
+        <div class="input-wrap">
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="Enter password to analyze"
+            autocomplete="off"
+            aria-label="Password"
+          />
+          <button type="submit" class="btn btn-primary" id="submitBtn">Analyze</button>
+          <button type="button" class="btn btn-icon" id="toggleBtn" title="Show password" aria-label="Show password">
+            <span id="toggleIcon">Show</span>
+          </button>
+        </div>
+        <label class="toggle-label">
+          <input type="checkbox" id="showPassword" />
+          Show password
+        </label>
+        <label class="toggle-label">
+          <input type="checkbox" id="hibpCheck" />
+          Check HaveIBeenPwned (HIBP)
+        </label>
+      </form>
+      <div id="error" class="error-msg" style="display: none;"></div>
+    </div>
+
+    <div class="card" id="results">
+      <div class="score-row">
+        <span class="score-value" id="scoreEl">—</span>
+        <span class="rating-badge" id="ratingEl">—</span>
+      </div>
+      <div class="meta">
+        <div>Length: <span id="lengthEl">—</span></div>
+        <div>Entropy: <span id="entropyEl">—</span> bits</div>
+        <div>Crack time (online): <span id="crackOnline">—</span></div>
+        <div>Crack time (offline): <span id="crackOffline">—</span></div>
+        <div>Crack time (dictionary): <span id="crackDict">—</span></div>
+        <div id="hibpRow" style="display: none;">HIBP breach count: <span id="hibpCount">—</span></div>
+      </div>
+      <p class="section-title">Issues</p>
+      <ul class="plain" id="issuesList"></ul>
+      <p class="section-title">Suggestions</p>
+      <ul class="plain" id="suggestionsList"></ul>
+      <div class="ai-suggestions" id="aiSection">
+        <p class="section-title">Stronger password suggestions</p>
+        <div id="aiList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('form');
+    const passwordInput = document.getElementById('password');
+    const submitBtn = document.getElementById('submitBtn');
+    const toggleBtn = document.getElementById('toggleBtn');
+    const toggleIcon = document.getElementById('toggleIcon');
+    const showPasswordCheck = document.getElementById('showPassword');
+    const hibpCheck = document.getElementById('hibpCheck');
+    const errorEl = document.getElementById('error');
+    const resultsEl = document.getElementById('results');
+    const scoreEl = document.getElementById('scoreEl');
+    const ratingEl = document.getElementById('ratingEl');
+    const lengthEl = document.getElementById('lengthEl');
+    const entropyEl = document.getElementById('entropyEl');
+    const crackOnline = document.getElementById('crackOnline');
+    const crackOffline = document.getElementById('crackOffline');
+    const crackDict = document.getElementById('crackDict');
+    const issuesList = document.getElementById('issuesList');
+    const suggestionsList = document.getElementById('suggestionsList');
+    const aiSection = document.getElementById('aiSection');
+    const aiList = document.getElementById('aiList');
+
+    function scoreClass(score) {
+      if (score < 50) return 'red';
+      if (score < 70) return 'yellow';
+      return 'green';
+    }
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+    }
+
+    function clearError() {
+      errorEl.style.display = 'none';
+      errorEl.textContent = '';
+    }
+
+    toggleBtn.addEventListener('click', function () {
+      const isPassword = passwordInput.type === 'password';
+      passwordInput.type = isPassword ? 'text' : 'password';
+      toggleIcon.textContent = isPassword ? 'Hide' : 'Show';
+      showPasswordCheck.checked = isPassword;
+    });
+
+    showPasswordCheck.addEventListener('change', function () {
+      passwordInput.type = this.checked ? 'text' : 'password';
+      toggleIcon.textContent = this.checked ? 'Hide' : 'Show';
+    });
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      clearError();
+      const password = passwordInput.value;
+      const hibp = hibpCheck.checked;
+      if (!password.trim()) {
+        showError('Please enter a password.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      form.classList.add('loading');
+      resultsEl.classList.remove('visible');
+
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: password, hibp: hibp })
+        });
+        const data = await res.json().catch(function () { return null; });
+
+        if (!res.ok) {
+          showError(data && data.message ? data.message : 'Analysis failed. Please try again.');
+          return;
+        }
+
+        scoreEl.textContent = data.score + ' / 100';
+        scoreEl.className = 'score-value ' + scoreClass(data.score);
+        ratingEl.textContent = data.rating;
+        ratingEl.className = 'rating-badge ' + scoreClass(data.score);
+
+        lengthEl.textContent = data.length;
+        entropyEl.textContent = data.entropy_bits;
+        crackOnline.textContent = data.crack_times.brute_force_online;
+        crackOffline.textContent = data.crack_times.brute_force_offline;
+        crackDict.textContent = data.crack_times.dictionary_attack;
+
+        // HIBP result handling
+        if (data.hibp_enabled) {
+          document.getElementById('hibpRow').style.display = 'block';
+          if (data.hibp_breach_count === null) {
+            document.getElementById('hibpCount').textContent = 'unavailable (API/network error)';
+          } else if (data.hibp_breach_count > 0) {
+            document.getElementById('hibpCount').textContent = data.hibp_breach_count + ' breach occurrence(s) in HIBP';
+          } else {
+            document.getElementById('hibpCount').textContent = '0 (not found in HIBP corpus)';
+          }
+        } else {
+          document.getElementById('hibpRow').style.display = 'none';
+          document.getElementById('hibpCount').textContent = '—';
+        }
+
+        issuesList.innerHTML = (data.issues && data.issues.length)
+          ? data.issues.map(function (i) { return '<li>' + escapeHtml(i) + '</li>'; }).join('')
+          : '<li>None detected.</li>';
+
+        suggestionsList.innerHTML = (data.suggestions && data.suggestions.length)
+          ? data.suggestions.map(function (s) { return '<li>' + escapeHtml(s) + '</li>'; }).join('')
+          : '';
+
+        if (data.ai_suggestions && data.ai_suggestions.length) {
+          aiSection.style.display = 'block';
+          aiList.innerHTML = data.ai_suggestions.map(function (a) {
+            const cls = scoreClass(a.score);
+            return '<div class="ai-item"><span class="pwd">' + escapeHtml(a.password) + '</span><span class="score ' + cls + '">' + a.score + ' / 100 · ' + escapeHtml(a.rating) + '</span></div>';
+          }).join('');
+        } else {
+          aiSection.style.display = 'none';
+        }
+
+        resultsEl.classList.add('visible');
+      } catch (err) {
+        showError('Network error. Please try again.');
+      } finally {
+        submitBtn.disabled = false;
+        form.classList.remove('loading');
+      }
+    });
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
