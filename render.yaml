@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: entropy-guard
+    runtime: python312
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn password_audit_lib.web:app
