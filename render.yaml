@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: my-service
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    regional: true
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+

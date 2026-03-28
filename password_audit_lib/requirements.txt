@@ -1,6 +1,2 @@
-# Dependencies for the password audit web interface
-# Install from project root: pip install -r password_audit_lib/requirements-web.txt
 Flask>=3.0.0
-Werkzeug>=3.0.0
-gunicorn
-
+gunicorn>=23.0.0
