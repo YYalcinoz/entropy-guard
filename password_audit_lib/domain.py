@@ -2,34 +2,36 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Set
+
+
+# ---------------------------
+# Constants
+# ---------------------------
+
+MAX_PASSWORD_LENGTH = 1000  # Hard limit to prevent ReDoS / overflow
+
+KEYBOARD_SEQUENCES = [
+    "qwerty", "asdfgh", "zxcvbn", "12345", "123456",
+    "123456789", "qwertyuiop", "asdfghjkl", "zxcvbnm",
+]
+
+COMMON_WORDS = [
+    "password", "letmein", "admin", "welcome", "login", "user",
+]
+
+# Basic built-in wordlist used when no external wordlist is provided
+DEFAULT_WORDLIST: Set[str] = {
+    "password", "123456", "123456789", "qwerty", "abc123",
+    "password1", "iloveyou", "admin", "letmein", "monkey",
+    "1234567", "sunshine", "master", "dragon", "passw0rd",
+    "shadow", "superman", "michael", "football", "charlie",
+}
 
 
 # ---------------------------
 # Pattern detection helpers
 # ---------------------------
-
-KEYBOARD_SEQUENCES = [
-    "qwerty",
-    "asdfgh",
-    "zxcvbn",
-    "12345",
-    "123456",
-    "123456789",
-    "qwertyuiop",
-    "asdfghjkl",
-    "zxcvbnm",
-]
-
-COMMON_WORDS = [
-    "password",
-    "letmein",
-    "admin",
-    "welcome",
-    "login",
-    "user",
-]
-
 
 def has_keyboard_walk(pw: str) -> bool:
     low = pw.lower()
@@ -72,10 +74,12 @@ def classify_score(score: int) -> str:
 
 
 # ---------------------------
-# Crack time estimation
+# Entropy & crack time
 # ---------------------------
 
 def estimate_entropy_bits(pw: str) -> float:
+    if not pw:
+        return 0.0
     charset = 0
     if any(c.islower() for c in pw):
         charset += 26
@@ -83,75 +87,66 @@ def estimate_entropy_bits(pw: str) -> float:
         charset += 26
     if any(c.isdigit() for c in pw):
         charset += 10
-    if any(not c.isalnum() for c in pw):
+    if any(not c.isalnum() and ord(c) <= 127 for c in pw):
         charset += 32
+    if any(ord(c) > 127 for c in pw):
+        charset += 64  # Unicode / emoji bonus
     if charset == 0:
         return 0.0
     return len(pw) * math.log2(charset)
 
 
 def _format_time(seconds: float) -> str:
-    """
-    Human-friendly crack time formatting.
-
-    - Extremely large values: collapse to a simple upper bound (e.g., "> 1 million years").
-    - Realistic values: favor clean units like "2 years", "6 months", "3 days", "5 hours".
-    - Avoid awkward combinations like "2086848 years, 155 days".
-    """
+    """Human-friendly crack time. Handles inf/overflow safely."""
+    # FIX: guard against inf or astronomically large values before int()
+    if not math.isfinite(seconds) or seconds > 3.15e13:
+        return "> 1 million years"
     if seconds < 1:
         return "<1 second"
 
     seconds_int = int(seconds)
-    year = 365 * 24 * 3600
-    month = 30 * 24 * 3600
-    day = 24 * 3600
-    hour = 3600
+    year   = 365 * 24 * 3600
+    month  = 30  * 24 * 3600
+    day    = 24  * 3600
+    hour   = 3600
     minute = 60
 
     years = seconds_int / year
-    if years >= 1_000_000:
-        return "> 1 million years"
-
     if years >= 10:
         y = round(years)
         return f"{y} year{'s' if y != 1 else ''}"
 
     if years >= 1:
         y = seconds_int // year
-        rem = seconds_int - y * year
-        months = rem // month
+        months = (seconds_int - y * year) // month
         if months > 0:
             return f"{y} year{'s' if y != 1 else ''}, {months} month{'s' if months != 1 else ''}"
         return f"{y} year{'s' if y != 1 else ''}"
 
     months = seconds_int // month
     if months >= 1:
-        rem = seconds_int - months * month
-        days = rem // day
+        days = (seconds_int - months * month) // day
         if days > 0:
             return f"{months} month{'s' if months != 1 else ''}, {days} day{'s' if days != 1 else ''}"
         return f"{months} month{'s' if months != 1 else ''}"
 
     days = seconds_int // day
     if days >= 1:
-        rem = seconds_int - days * day
-        hours = rem // hour
+        hours = (seconds_int - days * day) // hour
         if hours > 0:
             return f"{days} day{'s' if days != 1 else ''}, {hours} hour{'s' if hours != 1 else ''}"
         return f"{days} day{'s' if days != 1 else ''}"
 
     hours = seconds_int // hour
     if hours >= 1:
-        rem = seconds_int - hours * hour
-        minutes = rem // minute
+        minutes = (seconds_int - hours * hour) // minute
         if minutes > 0:
             return f"{hours} hour{'s' if hours != 1 else ''}, {minutes} minute{'s' if minutes != 1 else ''}"
         return f"{hours} hour{'s' if hours != 1 else ''}"
 
     minutes = seconds_int // minute
     if minutes >= 1:
-        rem = seconds_int - minutes * minute
-        secs = rem
+        secs = seconds_int - minutes * minute
         if secs > 0:
             return f"{minutes} minute{'s' if minutes != 1 else ''}, {secs} second{'s' if secs != 1 else ''}"
         return f"{minutes} minute{'s' if minutes != 1 else ''}"
@@ -167,30 +162,27 @@ def estimate_crack_times(pw: str) -> Dict[str, str]:
             "brute_force_offline": "N/A",
             "dictionary_attack": "N/A",
             "note": (
-                "Entropy estimate not available. These crack time values are illustrative only and "
-                "do not represent guarantees in real-world conditions."
+                "Entropy estimate not available. These crack time values are illustrative only."
             ),
         }
 
-    expected_guesses = 2 ** max(entropy - 1, 0)
+    # FIX: cap exponent to avoid float overflow → inf
+    safe_exp = min(entropy - 1, 1023)
+    expected_guesses = 2 ** max(safe_exp, 0)
 
-    brute_force_online_rate = 1e3
-    brute_force_offline_rate = 1e9
+    online_seconds  = expected_guesses / 1e3
+    offline_seconds = expected_guesses / 1e9
 
-    online_seconds = expected_guesses / brute_force_online_rate
-    offline_seconds = expected_guesses / brute_force_offline_rate
-
-    dictionary_attack_rate = 1e9
     effective_entropy_for_dict = max(entropy - 20, 0)
-    expected_dict_guesses = 2 ** effective_entropy_for_dict
-    dict_seconds = expected_dict_guesses / dictionary_attack_rate
+    safe_dict_exp = min(effective_entropy_for_dict, 1023)
+    dict_seconds = (2 ** safe_dict_exp) / 1e9
 
     return {
-        "brute_force_online": _format_time(online_seconds),
+        "brute_force_online":  _format_time(online_seconds),
         "brute_force_offline": _format_time(offline_seconds),
-        "dictionary_attack": _format_time(dict_seconds),
+        "dictionary_attack":   _format_time(dict_seconds),
         "note": (
-            "Very rough, illustrative estimates only. Real attackers often bypass brute force entirely "
+            "Very rough, illustrative estimates only. Real attackers often bypass brute force "
             "via breaches, password reuse, and smarter attack strategies."
         ),
     }
@@ -201,21 +193,24 @@ def estimate_crack_times(pw: str) -> Dict[str, str]:
 # ---------------------------
 
 def score_password(pw: str, wordlist: Set[str]) -> Dict:
+    # Use built-in wordlist as fallback when none provided
+    effective_wordlist = wordlist if wordlist else DEFAULT_WORDLIST
+
     issues: List[str] = []
     suggestions: List[str] = []
 
     length = len(pw)
-    lower = any(c.islower() for c in pw)
-    upper = any(c.isupper() for c in pw)
-    digits = any(c.isdigit() for c in pw)
+    lower   = any(c.islower() for c in pw)
+    upper   = any(c.isupper() for c in pw)
+    digits  = any(c.isdigit() for c in pw)
     symbols = any(not c.isalnum() for c in pw)
 
     score = 0
+
     if length == 0:
         issues.append("Password is empty.")
         suggestions.append("Use a long, unique passphrase (e.g., 3–5 random words).")
         return {
-            "password": pw,
             "score": 0,
             "rating": "Very Weak",
             "issues": issues,
@@ -226,6 +221,7 @@ def score_password(pw: str, wordlist: Set[str]) -> Dict:
             "crack_times": estimate_crack_times(pw),
         }
 
+    # Length scoring
     if length < 8:
         issues.append("Password is shorter than 8 characters.")
         suggestions.append("Use at least 12–16 characters wherever possible.")
@@ -237,10 +233,12 @@ def score_password(pw: str, wordlist: Set[str]) -> Dict:
     else:
         score += 40
 
+    # Character variety
     variety_count = sum([lower, upper, digits, symbols])
     if variety_count <= 1:
         issues.append("Password uses only one character type (e.g., all letters).")
         suggestions.append("Mix lower/upper case, digits, and symbols.")
+        score -= 15  # FIX: was missing penalty
     elif variety_count == 2:
         score += 10
     elif variety_count == 3:
@@ -248,15 +246,16 @@ def score_password(pw: str, wordlist: Set[str]) -> Dict:
     else:
         score += 25
 
-    in_wordlist = pw.lower() in wordlist if wordlist else False
+    # Wordlist check
+    in_wordlist = pw.lower() in effective_wordlist
     if in_wordlist:
-        issues.append("Password appears in the provided wordlist (likely common or breached).")
+        issues.append("Password appears in common/breached password list.")
         suggestions.append("Never reuse breached or common passwords.")
         score -= 40
 
     if has_common_word(pw):
         issues.append("Contains common password words (e.g., 'password', 'admin').")
-        suggestions.append("Avoid obvious words and phrases; use random or unrelated words.")
+        suggestions.append("Avoid obvious words and phrases.")
         score -= 15
 
     if has_keyboard_walk(pw):
@@ -271,9 +270,10 @@ def score_password(pw: str, wordlist: Set[str]) -> Dict:
 
     if looks_like_date(pw):
         issues.append("Looks like a date or simple numeric pattern.")
-        suggestions.append("Avoid using dates (birthdays, anniversaries) or easily guessed numbers.")
+        suggestions.append("Avoid using dates (birthdays, anniversaries).")
         score -= 10
 
+    # Entropy bonus
     entropy_bits = estimate_entropy_bits(pw)
     if entropy_bits >= 100:
         score += 20
@@ -284,7 +284,6 @@ def score_password(pw: str, wordlist: Set[str]) -> Dict:
 
     score = max(0, min(100, score))
     rating = classify_score(score)
-
     crack_times = estimate_crack_times(pw)
 
     if score >= 70 and not issues:
@@ -297,7 +296,7 @@ def score_password(pw: str, wordlist: Set[str]) -> Dict:
         )
 
     return {
-        "password": pw,
+        # FIX: removed plaintext "password" key — never expose in result dict
         "score": score,
         "rating": rating,
         "issues": issues,
@@ -310,8 +309,10 @@ def score_password(pw: str, wordlist: Set[str]) -> Dict:
 
 
 __all__ = [
+    "MAX_PASSWORD_LENGTH",
     "KEYBOARD_SEQUENCES",
     "COMMON_WORDS",
+    "DEFAULT_WORDLIST",
     "has_keyboard_walk",
     "has_common_word",
     "has_repeated_chars",
@@ -321,4 +322,3 @@ __all__ = [
     "estimate_crack_times",
     "score_password",
 ]
-

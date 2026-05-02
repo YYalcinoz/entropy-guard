@@ -288,12 +288,11 @@
             name="password"
             placeholder="Enter password to analyze"
             autocomplete="off"
+            maxlength="1000"
             aria-label="Password"
           />
           <button type="submit" class="btn btn-primary" id="submitBtn">Analyze</button>
-          <button type="button" class="btn btn-icon" id="toggleBtn" title="Show password" aria-label="Show password">
-            <span id="toggleIcon">Show</span>
-          </button>
+          <!-- FIX: removed duplicate toggleBtn, show/hide handled by checkbox only -->
         </div>
         <label class="toggle-label">
           <input type="checkbox" id="showPassword" />
@@ -332,26 +331,24 @@
   </div>
 
   <script>
-    const form = document.getElementById('form');
-    const passwordInput = document.getElementById('password');
-    const submitBtn = document.getElementById('submitBtn');
-    const toggleBtn = document.getElementById('toggleBtn');
-    const toggleIcon = document.getElementById('toggleIcon');
+    const form           = document.getElementById('form');
+    const passwordInput  = document.getElementById('password');
+    const submitBtn      = document.getElementById('submitBtn');
     const showPasswordCheck = document.getElementById('showPassword');
-    const hibpCheck = document.getElementById('hibpCheck');
-    const errorEl = document.getElementById('error');
-    const resultsEl = document.getElementById('results');
-    const scoreEl = document.getElementById('scoreEl');
-    const ratingEl = document.getElementById('ratingEl');
-    const lengthEl = document.getElementById('lengthEl');
-    const entropyEl = document.getElementById('entropyEl');
-    const crackOnline = document.getElementById('crackOnline');
-    const crackOffline = document.getElementById('crackOffline');
-    const crackDict = document.getElementById('crackDict');
-    const issuesList = document.getElementById('issuesList');
+    const hibpCheck      = document.getElementById('hibpCheck');
+    const errorEl        = document.getElementById('error');
+    const resultsEl      = document.getElementById('results');
+    const scoreEl        = document.getElementById('scoreEl');
+    const ratingEl       = document.getElementById('ratingEl');
+    const lengthEl       = document.getElementById('lengthEl');
+    const entropyEl      = document.getElementById('entropyEl');
+    const crackOnline    = document.getElementById('crackOnline');
+    const crackOffline   = document.getElementById('crackOffline');
+    const crackDict      = document.getElementById('crackDict');
+    const issuesList     = document.getElementById('issuesList');
     const suggestionsList = document.getElementById('suggestionsList');
-    const aiSection = document.getElementById('aiSection');
-    const aiList = document.getElementById('aiList');
+    const aiSection      = document.getElementById('aiSection');
+    const aiList         = document.getElementById('aiList');
 
     function scoreClass(score) {
       if (score < 50) return 'red';
@@ -369,23 +366,18 @@
       errorEl.textContent = '';
     }
 
-    toggleBtn.addEventListener('click', function () {
-      const isPassword = passwordInput.type === 'password';
-      passwordInput.type = isPassword ? 'text' : 'password';
-      toggleIcon.textContent = isPassword ? 'Hide' : 'Show';
-      showPasswordCheck.checked = isPassword;
-    });
-
+    // FIX: single show/hide handler via checkbox only
     showPasswordCheck.addEventListener('change', function () {
       passwordInput.type = this.checked ? 'text' : 'password';
-      toggleIcon.textContent = this.checked ? 'Hide' : 'Show';
     });
 
     form.addEventListener('submit', async function (e) {
       e.preventDefault();
       clearError();
+
       const password = passwordInput.value;
-      const hibp = hibpCheck.checked;
+      const hibp     = hibpCheck.checked;
+
       if (!password.trim()) {
         showError('Please enter a password.');
         return;
@@ -401,25 +393,26 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password: password, hibp: hibp })
         });
+
         const data = await res.json().catch(function () { return null; });
 
         if (!res.ok) {
-          showError(data && data.message ? data.message : 'Analysis failed. Please try again.');
+          // FIX: Flask BadRequest returns { description: "..." }, not { message: "..." }
+          showError(data && data.description ? data.description : 'Analysis failed. Please try again.');
           return;
         }
 
-        scoreEl.textContent = data.score + ' / 100';
-        scoreEl.className = 'score-value ' + scoreClass(data.score);
+        scoreEl.textContent  = data.score + ' / 100';
+        scoreEl.className    = 'score-value ' + scoreClass(data.score);
         ratingEl.textContent = data.rating;
-        ratingEl.className = 'rating-badge ' + scoreClass(data.score);
+        ratingEl.className   = 'rating-badge ' + scoreClass(data.score);
 
-        lengthEl.textContent = data.length;
+        lengthEl.textContent  = data.length;
         entropyEl.textContent = data.entropy_bits;
-        crackOnline.textContent = data.crack_times.brute_force_online;
+        crackOnline.textContent  = data.crack_times.brute_force_online;
         crackOffline.textContent = data.crack_times.brute_force_offline;
-        crackDict.textContent = data.crack_times.dictionary_attack;
+        crackDict.textContent    = data.crack_times.dictionary_attack;
 
-        // HIBP result handling
         if (data.hibp_enabled) {
           document.getElementById('hibpRow').style.display = 'block';
           if (data.hibp_breach_count === null) {
@@ -445,14 +438,20 @@
         if (data.ai_suggestions && data.ai_suggestions.length) {
           aiSection.style.display = 'block';
           aiList.innerHTML = data.ai_suggestions.map(function (a) {
-            const cls = scoreClass(a.score);
-            return '<div class="ai-item"><span class="pwd">' + escapeHtml(a.password) + '</span><span class="score ' + cls + '">' + a.score + ' / 100 · ' + escapeHtml(a.rating) + '</span></div>';
+            var cls = scoreClass(a.score);
+            return (
+              '<div class="ai-item">' +
+              '<span class="pwd">' + escapeHtml(a.password) + '</span>' +
+              '<span class="score ' + cls + '">' + a.score + ' / 100 · ' + escapeHtml(a.rating) + '</span>' +
+              '</div>'
+            );
           }).join('');
         } else {
           aiSection.style.display = 'none';
         }
 
         resultsEl.classList.add('visible');
+
       } catch (err) {
         showError('Network error. Please try again.');
       } finally {
@@ -462,7 +461,7 @@
     });
 
     function escapeHtml(s) {
-      const div = document.createElement('div');
+      var div = document.createElement('div');
       div.textContent = s;
       return div.innerHTML;
     }

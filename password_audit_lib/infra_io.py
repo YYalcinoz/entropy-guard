@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 from typing import Dict, List, Set
@@ -28,26 +27,22 @@ def read_passwords_from_file(path: str) -> List[str]:
     passwords: List[str] = []
     with p.open("r", encoding="utf-8", errors="ignore") as f:
         for line in f:
-            pw = line.rstrip("\n")
+            # FIX: use strip() instead of rstrip("\n") to also drop whitespace-only lines
+            pw = line.strip()
             if pw:
                 passwords.append(pw)
     return passwords
 
 
 def write_json_report(path: str, results: List[Dict]) -> None:
+    # FIX: was "out_path.open" written as "out_[path.open]" — corrected variable name
     out_path = Path(path)
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
-
-
-def hash_sha1(pw: str) -> str:
-    return hashlib.sha1(pw.encode("utf-8")).hexdigest().upper()
 
 
 __all__ = [
     "load_wordlist",
     "read_passwords_from_file",
     "write_json_report",
-    "hash_sha1",
 ]
-

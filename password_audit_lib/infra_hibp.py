@@ -11,15 +11,21 @@ def hibp_pwned_count(pw: str, *, timeout: float = 10.0) -> Optional[int]:
     Return the breach count from HaveIBeenPwned for the given password, or:
     - 0 if not found in the corpus
     - None on network / API errors
+
+    Uses k-anonymity: only the first 5 characters of the SHA-1 hash are sent.
     """
-    sha1 = hashlib.sha1(pw.encode("utf-8")).hexdigest().upper()
-    prefix, suffix = sha1[:5], sha1[5:]
+    sha1   = hashlib.sha1(pw.encode("utf-8")).hexdigest().upper()
+    prefix = sha1[:5]
+    suffix = sha1[5:]
+
     url = f"https://api.pwnedpasswords.com/range/{prefix}"
-    req = request.Request(url, headers={"User-Agent": "local-password-audit"})
+    req = request.Request(url, headers={"User-Agent": "entropy-guard-audit"})
+
     try:
         with request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8", errors="ignore")
-    except (urlerror.URLError, TimeoutError, ValueError):
+    # FIX: added OSError to catch low-level network failures not wrapped by URLError
+    except (urlerror.URLError, TimeoutError, ValueError, OSError):
         return None
 
     for line in body.splitlines():
@@ -32,8 +38,13 @@ def hibp_pwned_count(pw: str, *, timeout: float = 10.0) -> Optional[int]:
                 return int(count_str)
             except ValueError:
                 return None
+
     return 0
 
 
-__all__ = ["hibp_pwned_count"]
+def hash_sha1(pw: str) -> str:
+    """Return uppercase SHA-1 hex digest of the given password."""
+    return hashlib.sha1(pw.encode("utf-8")).hexdigest().upper()
 
+
+__all__ = ["hibp_pwned_count", "hash_sha1"]

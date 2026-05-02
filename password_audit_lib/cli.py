@@ -8,33 +8,34 @@ from typing import Iterable, List, Optional
 import getpass
 from pathlib import Path
 
-from .infra_hibp import hibp_pwned_count
-from .infra_io import hash_sha1, load_wordlist, read_passwords_from_file, write_json_report
-from .reporting import CYAN, RED, YELLOW, RESET, BOLD, GREEN, mask_password, print_ai_suggestions, print_report
+from .domain import MAX_PASSWORD_LENGTH, score_password
+from .infra_hibp import hibp_pwned_count, hash_sha1   # FIX: hash_sha1 moved to infra_hibp
+from .infra_io import load_wordlist, read_passwords_from_file, write_json_report
+from .reporting import (
+    CYAN, RED, YELLOW, RESET, BOLD, GREEN,
+    mask_password, print_ai_suggestions, print_report,
+)
 from .suggestions import suggest_stronger_passwords
-from .domain import score_password
+
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Local password strength and risk audit tool.",
     )
     parser.add_argument(
-        "-p",
-        "--password",
+        "-p", "--password",
         action="append",
         help="Password to audit (can be specified multiple times).",
     )
     parser.add_argument(
-        "-f",
-        "--file",
+        "-f", "--file",
         help=(
             "File containing one password per line. This file may contain sensitive data; "
             "store it securely with restricted permissions."
         ),
     )
     parser.add_argument(
-        "-w",
-        "--wordlist",
+        "-w", "--wordlist",
         help=(
             "Optional wordlist of weak/common passwords. This file may contain sensitive data; "
             "store it securely with restricted permissions."
@@ -87,6 +88,17 @@ def collect_passwords(args: argparse.Namespace) -> List[str]:
     return passwords
 
 
+def _enforce_max_length(pw: str) -> bool:
+    """Print a warning and return False if password exceeds the hard limit."""
+    if len(pw) > MAX_PASSWORD_LENGTH:
+        print(
+            f"{RED}Skipping password: exceeds maximum length of {MAX_PASSWORD_LENGTH} characters.{RESET}",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
 def interactive_loop(
     wordlist,
     use_hibp: bool,
@@ -118,11 +130,14 @@ def interactive_loop(
         if not pw:
             continue
 
+        # FIX: enforce max length in CLI too
+        if not _enforce_max_length(pw):
+            continue
+
         result = score_password(pw, wordlist)
         hibp_count: Optional[int] = None
         if use_hibp:
             hibp_count = hibp_pwned_count(pw)
-            result["hibp_breach_count"] = hibp_count
             if hibp_delay > 0:
                 time.sleep(hibp_delay)
 
@@ -141,31 +156,32 @@ def interactive_loop(
                     file=sys.stderr,
                 )
 
-        print_report(result, hibp_count, use_hibp)
+        # FIX: pass password explicitly — no longer in result dict
+        print_report(result, hibp_count, use_hibp, password=pw)
         if ai_suggestions:
             print_ai_suggestions(ai_suggestions)
 
         result_for_json = {
             "masked_password": mask_password(pw),
-            "length": result["length"],
-            "score": result["score"],
-            "rating": result["rating"],
-            "issues": result["issues"],
-            "suggestions": result["suggestions"],
-            "in_wordlist": result["in_wordlist"],
-            "entropy_bits": result["entropy_bits"],
-            "crack_times": result["crack_times"],
-            "hibp_breach_count": result.get("hibp_breach_count"),
+            "length":          result["length"],
+            "score":           result["score"],
+            "rating":          result["rating"],
+            "issues":          result["issues"],
+            "suggestions":     result["suggestions"],
+            "in_wordlist":     result["in_wordlist"],
+            "entropy_bits":    result["entropy_bits"],
+            "crack_times":     result["crack_times"],
+            "hibp_breach_count": hibp_count,
         }
         if include_hash:
             result_for_json["sha1"] = hash_sha1(pw)
         if ai_suggestions:
             result_for_json["ai_suggestions"] = [
                 {
-                    "masked_password": mask_password(s["password"]),
-                    "length": len(str(s["password"])),
-                    "score": int(s["score"]),
-                    "rating": str(s["rating"]),
+                    "masked_password": mask_password(str(s["password"])),
+                    "length":          len(str(s["password"])),
+                    "score":           int(s["score"]),
+                    "rating":          str(s["rating"]),
                 }
                 for s in ai_suggestions
             ]
@@ -192,11 +208,14 @@ def batch_mode(args: argparse.Namespace, wordlist) -> int:
     all_results: List[dict] = []
 
     for pw in passwords:
+        # FIX: enforce max length in batch mode too
+        if not _enforce_max_length(pw):
+            continue
+
         result = score_password(pw, wordlist)
         hibp_count: Optional[int] = None
         if args.hibp:
             hibp_count = hibp_pwned_count(pw)
-            result["hibp_breach_count"] = hibp_count
             if args.hibp_delay > 0:
                 time.sleep(args.hibp_delay)
 
@@ -215,31 +234,32 @@ def batch_mode(args: argparse.Namespace, wordlist) -> int:
                     file=sys.stderr,
                 )
 
-        print_report(result, hibp_count, args.hibp)
+        # FIX: pass password explicitly — no longer in result dict
+        print_report(result, hibp_count, args.hibp, password=pw)
         if ai_suggestions:
             print_ai_suggestions(ai_suggestions)
 
         result_for_json = {
             "masked_password": mask_password(pw),
-            "length": result["length"],
-            "score": result["score"],
-            "rating": result["rating"],
-            "issues": result["issues"],
-            "suggestions": result["suggestions"],
-            "in_wordlist": result["in_wordlist"],
-            "entropy_bits": result["entropy_bits"],
-            "crack_times": result["crack_times"],
-            "hibp_breach_count": result.get("hibp_breach_count"),
+            "length":          result["length"],
+            "score":           result["score"],
+            "rating":          result["rating"],
+            "issues":          result["issues"],
+            "suggestions":     result["suggestions"],
+            "in_wordlist":     result["in_wordlist"],
+            "entropy_bits":    result["entropy_bits"],
+            "crack_times":     result["crack_times"],
+            "hibp_breach_count": hibp_count,
         }
         if args.include_hash:
             result_for_json["sha1"] = hash_sha1(pw)
         if ai_suggestions:
             result_for_json["ai_suggestions"] = [
                 {
-                    "masked_password": mask_password(s["password"]),
-                    "length": len(str(s["password"])),
-                    "score": int(s["score"]),
-                    "rating": str(s["rating"]),
+                    "masked_password": mask_password(str(s["password"])),
+                    "length":          len(str(s["password"])),
+                    "score":           int(s["score"]),
+                    "rating":          str(s["rating"]),
                 }
                 for s in ai_suggestions
             ]

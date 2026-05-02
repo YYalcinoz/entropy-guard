@@ -7,12 +7,12 @@ from typing import Dict, List, Optional
 # Colors (ANSI)
 # ---------------------------
 
-BOLD = "\033[1m"
-RESET = "\033[0m"
-RED = "\033[31m"
+BOLD   = "\033[1m"
+RESET  = "\033[0m"
+RED    = "\033[31m"
 YELLOW = "\033[33m"
-GREEN = "\033[32m"
-CYAN = "\033[36m"
+GREEN  = "\033[32m"
+CYAN   = "\033[36m"
 
 
 def color_for_score(score: int) -> str:
@@ -30,12 +30,18 @@ def mask_password(pw: str) -> str:
     return f"{pw[0]}{'*' * (length - 2)}{pw[-1]} ({length} chars)"
 
 
-def format_report_lines(result: Dict, hibp_count: Optional[int], hibp_enabled: bool) -> List[str]:
+def format_report_lines(
+    result: Dict,
+    hibp_count: Optional[int],
+    hibp_enabled: bool,
+    password: str = "",          # FIX: plaintext removed from result dict, pass explicitly
+) -> List[str]:
     lines: List[str] = []
-    masked = mask_password(result["password"])
+    # FIX: use parameter instead of result["password"] (no longer in result)
+    masked = mask_password(password) if password else mask_password("?" * result["length"])
     color = color_for_score(result["score"])
     rating_colored = f"{color}{result['rating']}{RESET}"
-    score_colored = f"{color}{result['score']} / 100{RESET}"
+    score_colored  = f"{color}{result['score']} / 100{RESET}"
 
     lines.append("=" * 60)
     lines.append(f"Password : {masked}")
@@ -54,17 +60,11 @@ def format_report_lines(result: Dict, hibp_count: Optional[int], hibp_enabled: b
         lines.append(f"{YELLOW}HIBP    : Skipped (run with --hibp to enable online breach check).{RESET}")
     else:
         if hibp_count is None:
-            lines.append(
-                f"{YELLOW}HIBP    : API error or network issue during HaveIBeenPwned check.{RESET}"
-            )
+            lines.append(f"{YELLOW}HIBP    : API error or network issue during HaveIBeenPwned check.{RESET}")
         elif hibp_count > 0:
-            lines.append(
-                f"{RED}HIBP    : Found {hibp_count} breach occurrence(s) in HaveIBeenPwned.{RESET}"
-            )
+            lines.append(f"{RED}HIBP    : Found {hibp_count} breach occurrence(s) in HaveIBeenPwned.{RESET}")
         else:
-            lines.append(
-                f"{GREEN}HIBP    : Not found in HaveIBeenPwned corpus (no guarantee of safety).{RESET}"
-            )
+            lines.append(f"{GREEN}HIBP    : Not found in HaveIBeenPwned corpus (no guarantee of safety).{RESET}")
 
     if result["issues"]:
         lines.append("")
@@ -91,19 +91,24 @@ def format_ai_suggestions_lines(suggestions: List[Dict[str, object]]) -> List[st
     lines: List[str] = []
     lines.append(f"{CYAN}AI-powered suggestions (memorable but stronger):{RESET}")
     for i, s in enumerate(suggestions, 1):
-        pw = str(s["password"])
-        score = int(s["score"])
+        pw     = str(s["password"])
+        score  = int(s["score"])
         rating = str(s["rating"])
-        color = color_for_score(score)
-        score_colored = f"{color}{score} / 100{RESET}"
-        rating_colored = f"{color}{rating}{RESET}"
-        lines.append(f"  {i}. {pw}  -> Score: {score_colored} ({rating_colored})")
+        color  = color_for_score(score)
+        lines.append(
+            f"  {i}. {pw}  -> Score: {color}{score} / 100{RESET} ({color}{rating}{RESET})"
+        )
     lines.append("")
     return lines
 
 
-def print_report(result: Dict, hibp_count: Optional[int], hibp_enabled: bool) -> None:
-    for line in format_report_lines(result, hibp_count, hibp_enabled):
+def print_report(
+    result: Dict,
+    hibp_count: Optional[int],
+    hibp_enabled: bool,
+    password: str = "",
+) -> None:
+    for line in format_report_lines(result, hibp_count, hibp_enabled, password):
         print(line)
 
 
@@ -113,11 +118,7 @@ def print_ai_suggestions(suggestions: List[Dict[str, object]]) -> None:
 
 
 __all__ = [
-    "RESET",
-    "RED",
-    "YELLOW",
-    "GREEN",
-    "CYAN",
+    "RESET", "RED", "YELLOW", "GREEN", "CYAN",
     "color_for_score",
     "mask_password",
     "format_report_lines",
@@ -125,4 +126,3 @@ __all__ = [
     "print_report",
     "print_ai_suggestions",
 ]
-

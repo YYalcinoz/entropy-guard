@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import secrets
 import time
+import secrets
 from typing import Dict, List, Set
 
 from .domain import (
@@ -11,6 +11,36 @@ from .domain import (
     score_password,
 )
 
+# ---------------------------
+# Candidate builder (module-level for clarity)
+# ---------------------------
+
+_LOWER   = "abcdefghijklmnopqrstuvwxyz"
+_UPPER   = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+_DIGITS  = "0123456789"
+_SYMBOLS = "!@#$%^&*()-_=+[]{};:,.?/|"
+_ALL     = _LOWER + _UPPER + _DIGITS + _SYMBOLS
+
+_rng = secrets.SystemRandom()
+
+
+def _build_candidate(min_length: int) -> str:
+    """Generate a random password with at least one of each character class."""
+    chars = [
+        _rng.choice(_LOWER),
+        _rng.choice(_UPPER),
+        _rng.choice(_DIGITS),
+        _rng.choice(_SYMBOLS),
+    ]
+    while len(chars) < min_length:
+        chars.append(_rng.choice(_ALL))
+    _rng.shuffle(chars)
+    return "".join(chars)
+
+
+# ---------------------------
+# Public API
+# ---------------------------
 
 def suggest_stronger_passwords(
     pw: str,
@@ -19,67 +49,44 @@ def suggest_stronger_passwords(
     timeout_seconds: float = 5.0,
 ) -> List[Dict[str, object]]:
     """
-    Heuristic suggestions using random character strings:
-    - Keep similar length or longer (targeting high scores, >= 80/100 when possible).
-    - Use random mixes of upper/lower/digits/symbols (no dictionary words).
+    Return up to `count` stronger password suggestions.
+    Candidates are random character strings — no dictionary words.
+    Returns fewer than `count` if timeout is hit or max_attempts exceeded.
     """
-    base_length = len(pw)
-    target_min_length = max(base_length + 4, 18)
-
-    rng = secrets.SystemRandom()
-
-    lower_chars = "abcdefghijklmnopqrstuvwxyz"
-    upper_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    digit_chars = "0123456789"
-    symbol_chars = "!@#$%^&*()-_=+[]{};:,.?/|"
-    all_chars = lower_chars + upper_chars + digit_chars + symbol_chars
-
-    original_score = score_password(pw, wordlist)["score"]
+    target_min_length = max(len(pw) + 4, 18)
+    original_score    = score_password(pw, wordlist)["score"]
     required_min_score = max(80, original_score + 10)
 
-    def build_candidate() -> str:
-        chars = [
-            rng.choice(lower_chars),
-            rng.choice(upper_chars),
-            rng.choice(digit_chars),
-            rng.choice(symbol_chars),
-        ]
-        while len(chars) < target_min_length:
-            chars.append(rng.choice(all_chars))
-        rng.shuffle(chars)
-        return "".join(chars)
-
     suggestions: List[Dict[str, object]] = []
-    start_time = time.monotonic()
-    attempts = 0
+    start_time  = time.monotonic()
+    attempts    = 0
     max_attempts = 300
 
     while len(suggestions) < count and attempts < max_attempts:
-        if timeout_seconds is not None and timeout_seconds > 0:
-            if time.monotonic() - start_time >= timeout_seconds:
-                break
-        attempts += 1
-        candidate = build_candidate()
+        # FIX: timeout check before the expensive score_password call
+        if time.monotonic() - start_time >= timeout_seconds:
+            break
 
+        attempts += 1
+        candidate = _build_candidate(target_min_length)
+
+        # Fast pre-checks before the expensive scoring
         if has_common_word(candidate) or has_keyboard_walk(candidate) or looks_like_date(candidate):
             continue
 
         cand_result = score_password(candidate, wordlist)
-        cand_score = cand_result["score"]
+        cand_score  = cand_result["score"]
 
         if cand_score <= original_score or cand_score < required_min_score:
             continue
 
-        suggestions.append(
-            {
-                "password": candidate,
-                "score": cand_score,
-                "rating": cand_result["rating"],
-            }
-        )
+        suggestions.append({
+            "password": candidate,
+            "score":    cand_score,
+            "rating":   cand_result["rating"],
+        })
 
     return suggestions[:count]
 
 
 __all__ = ["suggest_stronger_passwords"]
-
