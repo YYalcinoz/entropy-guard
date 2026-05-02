@@ -30,7 +30,7 @@ pip install -r requirements.txt
 ### Web Interface
 
 ```bash
-python password_audit_web.py
+flask --app password_audit_lib.web run
 ```
 
 Open `http://127.0.0.1:5000/` in your browser.
