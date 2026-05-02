@@ -1,13 +1,8 @@
 services:
   - type: web
-    name: my-service
-    env: node
+    name: entropy-guard
+    env: python
     plan: free
-    buildCommand: npm install
-    startCommand: npm start
-    regional: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn password_audit_lib.web:app
     autoDeploy: true
-    envVars:
-      - key: NODE_ENV
-        value: production
-
