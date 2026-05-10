@@ -211,3 +211,7 @@ docs/
 password_audit.py
 password_audit_backup.py
 password_audit_web.py
+.claude-flow/
+.claude/
+.mcp.json
+CLAUDE.md
